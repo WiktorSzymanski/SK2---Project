@@ -1,42 +1,98 @@
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <signal.h>
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
-void request(char *addres, int port, char *index) {
-    int fd = socket(PF_INET, SOCK_STREAM, 0);
+#define BUFFER_SIZE 512
+#define BACKLOG_SIZE 5
+#define SERVER_PORT 1234
 
-    struct hostent* addrent;
-    struct sockaddr_in addr;
 
-    addrent = gethostbyname(addres);
-
-    addr.sin_family = PF_INET;
-    addr.sin_port = htons(port);
-    memcpy(&addr.sin_addr.s_addr, addrent->h_addr, addrent->h_length);
-
-    char buf[255];
-
-    if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) != -1) {
-        write(fd, index, strlen(index));
-        read(fd, buf, sizeof(buf));
-        printf("%s\n", buf);
-    }
-    close(fd);
+void childend() {
+    printf("Child ended\n");
+    wait(NULL);
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 4) {
-        printf("Brak agrumentow: DOMENA, PORT i NUMER INDEXU\n");
-        return 0;
+int main(int argc, char **argv)
+{
+    socklen_t clientSocketLength;
+    struct sockaddr_in serverAddress, clientAddress;
+
+    int serverFd = socket(PF_INET, SOCK_STREAM, 0),
+        clientFd,
+        on = 1;
+
+    char buffer[BUFFER_SIZE];
+    char errorMessage[BUFFER_SIZE] = "\e[31mERROR\e[0m";
+
+    // Mówi systemowi operacyjnemu aby uwalniał port po wyłączeniu serwera
+    setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof(on));
+
+    signal(SIGCHLD, childend);
+
+    serverAddress.sin_family = PF_INET;
+    serverAddress.sin_addr.s_addr = INADDR_ANY; // wszystkie adresy ip w systemie
+    serverAddress.sin_port = htons(SERVER_PORT);
+
+    int isPortAlreadyTaken = -1 == bind(serverFd, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
+
+    if (isPortAlreadyTaken)
+    {
+        printf("Couldn't open socket.\n");
+        return EXIT_FAILURE;
     }
 
-    request(argv[1], atoi(argv[2]), argv[3]);
+    listen(serverFd, BACKLOG_SIZE);
+    int id = 0;
 
-    return 0;
+    while (1)
+    {
+        clientSocketLength = sizeof(clientAddress);
+        clientFd = accept(serverFd, (struct sockaddr *)&clientAddress, &clientSocketLength);
+
+        printf("Id: %d\n", id++);
+        if (fork() == 0)
+        {
+            close(serverFd);
+
+            printf("\e[32m[CONNECTED]\e[0m: %s\n\e[33m[MESSAGE]\e[0m: ", inet_ntoa((struct in_addr)clientAddress.sin_addr));
+
+            read(clientFd, buffer, BUFFER_SIZE);
+
+            printf("%s\n\n", buffer);
+
+            if (strncmp(buffer, "148165", 6) == 0)
+            {
+                write(clientFd, "Adrian Kokot", strlen("Adrian Kokot"));
+            }
+            else if (strncmp(buffer, "148084", 6) == 0)
+            {
+                write(clientFd, "Wiktor Szymanski", strlen("Wiktor Szymanski"));
+            }
+            else
+            {
+                write(clientFd, errorMessage, BUFFER_SIZE);
+            }
+
+            close(clientFd);
+
+            exit(EXIT_SUCCESS);
+        }
+        else
+        {
+            close(clientFd);
+        }
+
+    }
+
+    close(serverFd);
+
+    return EXIT_SUCCESS;
 }
