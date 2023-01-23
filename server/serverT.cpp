@@ -10,6 +10,7 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
+#include <iostream>
 
 
 #define BUFFER_SIZE 512
@@ -22,7 +23,7 @@ struct clientln {
 };
 
 void* cthread(void* arg) {
-    char buffer[BUFFER_SIZE];
+    char* buffer = new char[BUFFER_SIZE];
     char errorMessage[BUFFER_SIZE] = "\e[31mERROR\e[0m";
     struct clientln* c = (struct clientln*)arg;
 
@@ -33,13 +34,9 @@ void* cthread(void* arg) {
 
         printf("%s\n\n", buffer);
 
-        if(strncmp(buffer, "148165", 6) == 0) {
-            write(c->cfd, "Adrian Kokot", strlen("Adrian Kokot"));
-        } else if(strncmp(buffer, "148084", 6) == 0) {
-            write(c->cfd, "Wiktor Szymanski", strlen("Wiktor Szymanski"));
-        } else {
-            write(c->cfd, errorMessage, BUFFER_SIZE);
-        }
+        write(c->cfd, buffer, strlen(buffer));
+
+        memset(buffer, 0, 512);
     }
 }
 
@@ -72,7 +69,9 @@ int main(int argc, char **argv) {
         struct clientln* c = new clientln();
 
         clientSocketLength = sizeof(c->caddr);
+        std::cout << "Accept next"<< std::endl;
         c -> cfd = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
+        std::cout << c->cfd << std::endl;
         pthread_create(&tid, NULL, cthread, c);
         pthread_detach(tid);
     }
