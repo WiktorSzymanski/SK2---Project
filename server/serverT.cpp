@@ -16,7 +16,7 @@
 #define BACKLOG_SIZE 5
 #define SERVER_PORT 1234
 
-struct cln {
+struct clientln {
     int cfd;
     struct sockaddr_in caddr;
 };
@@ -24,7 +24,7 @@ struct cln {
 void* cthread(void* arg) {
     char buffer[BUFFER_SIZE];
     char errorMessage[BUFFER_SIZE] = "\e[31mERROR\e[0m";
-    struct cln* c = (struct cln*)arg;
+    struct clientln* c = (struct clientln*)arg;
 
     printf("\e[32m[CONNECTED]\e[0m: %s\n\e[33m[MESSAGE]\e[0m: ", inet_ntoa((struct in_addr)c -> caddr.sin_addr));
 
@@ -39,6 +39,8 @@ void* cthread(void* arg) {
     } else {
         write(c->cfd, errorMessage, BUFFER_SIZE);
     }
+
+    return nullptr;
 }
 
 int main(int argc, char **argv) {
@@ -67,8 +69,7 @@ int main(int argc, char **argv) {
     listen(serverFd, BACKLOG_SIZE);
 
     while(1) {
-
-        struct cln* c = malloc(sizeof(struct cln));
+        struct clientln* c = new clientln();
 
         clientSocketLength = sizeof(c->caddr);
         c -> cfd = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
