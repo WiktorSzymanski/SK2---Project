@@ -11,6 +11,11 @@
 #include <signal.h>
 #include <sys/select.h>
 
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
 #define BUFFER_SIZE 512
 #define BACKLOG_SIZE 10
 #define SERVER_PORT 1234
@@ -19,17 +24,18 @@
 int main(int argc, char **argv) {
     socklen_t clientSocketLength;
     struct sockaddr_in serverAddress, clientAddress;
+    std::vector<std::string> messages;
     
     int serverFd = socket(PF_INET, SOCK_STREAM, 0),
         clientFd, 
         on = 1,
-        fdMax, fda, rc;
+        fdMax, fd_count, rc;
 
     char buffer[BUFFER_SIZE];
     char errorMessage[BUFFER_SIZE] = "\e[31mERROR\e[0m";
 
     static struct timeval timeout;
-    fd_set mask, rmask, wmask, resp1, resp2;
+    fd_set filesDescriptors, readFilesDescriptors, writeFilesDescriptors, resp1, resp2;
 
     // Mówi systemowi operacyjnemu aby uwalniał port po wyłączeniu serwera
     setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on));
@@ -47,86 +53,115 @@ int main(int argc, char **argv) {
 
     listen(serverFd, BACKLOG_SIZE);
 
-    FD_ZERO(&mask);
-    FD_ZERO(&rmask);
-    FD_ZERO(&wmask);
+    FD_ZERO(&filesDescriptors);
+    FD_ZERO(&readFilesDescriptors);
+    FD_ZERO(&writeFilesDescriptors);
 
     fdMax = serverFd;
 
     while(1) {
         printf("Server started\n");
-        rmask = mask;
-        FD_SET(serverFd, &rmask);
+        readFilesDescriptors = filesDescriptors;
+        FD_SET(serverFd, &readFilesDescriptors);
         timeout.tv_sec = 60 * 5;
         timeout.tv_usec = 0;
-        rc = select(fdMax+1, &rmask, &wmask, (fd_set*)0, &timeout);
+        rc = select(fdMax+1, &readFilesDescriptors, &writeFilesDescriptors, (fd_set*)0, &timeout);
 
         if (rc == 0) {
             printf("timed out\n");
             continue;
         }
-        fda = rc;
-        if (FD_ISSET(serverFd, &rmask)) {
-            fda -= 1;
+        fd_count = rc;
+        if (FD_ISSET(serverFd, &readFilesDescriptors)) {
+            fd_count -= 1;
             clientSocketLength = sizeof(clientAddress);
             clientFd = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
             printf("Connection: %s\n",
                 inet_ntoa((struct in_addr)clientAddress.sin_addr));
-            FD_SET(clientFd, &mask);
+            FD_SET(clientFd, &filesDescriptors);
             if (clientFd > fdMax) fdMax = clientFd;
         }
-        for (int i = serverFd + 1; i <= fdMax && fda > 0; i++) {
-            if (FD_ISSET(i, &wmask)) {
-                fda -= 1;
-                
-                if(FD_ISSET(i, &resp1)) {
-                    char *r = "Odpowiedz 1\n";
-                    int len = strlen(r);
-                    int sentCount = 0;
-                   do{
-                   	sentCount = write(i,r, strlen(r));
-                   	r += sentCount;
-                   } while(sentCount < len);
-                    FD_CLR(i, &resp1);
-                    
-                } else if(FD_ISSET(i, &resp2)) {
-                
-                    char *r = "Odpowiedz 2\n";
-                    int len = strlen(r);
-                    int sentCount = 0;
-                   do{
-                   	int temp = write(i,r+sentCount,strlen(r));
-                   	r += temp;
-                   	sentCount += temp;
-                   } while(sentCount < len);
-                    FD_CLR(i, &resp1);
-                } else {
-                    write(i, errorMessage, BUFFER_SIZE);
+        for (int i = serverFd + 1; i <= fdMax && fd_count > 0; i++) {
+            if (FD_ISSET(i, &writeFilesDescriptors)) {
+                fd_count -= 1;
+
+                while(!messages.empty()) {
+                    sleep(20);
+                    std::string mess = messages.front();
+                    messages.erase(messages.begin());
+                    char * buf = new char [mess.length() + 1];
+                    strcpy (buf, mess.c_str());
+
+                    write(i, buf, strlen(buf));
+                    std::cout << buf << " was send" << std::endl;
                 }
+                
+                // if(FD_ISSET(i, &resp1)) {
+                //     char *r = "Odpowiedz 1\n";
+                //     int len = strlen(r);
+                //     int sentCount = 0;
+                //    do{
+                //    	sentCount = write(i,r, strlen(r));
+                //    	r += sentCount;
+                //    } while(sentCount < len);
+                //     FD_CLR(i, &resp1);
+                    
+                // } else if(FD_ISSET(i, &resp2)) {
+                
+                //     char *r = "Odpowiedz 2\n";
+                //     int len = strlen(r);
+                //     int sentCount = 0;
+                //    do{
+                //    	int temp = write(i,r+sentCount,strlen(r));
+                //    	r += temp;
+                //    	sentCount += temp;
+                //    } while(sentCount < len);
+                //     FD_CLR(i, &resp1);
+                // } else {
+                //     write(i, errorMessage, BUFFER_SIZE);
+                // }
+
+                // if(FD_ISSET(i, &resp1)) {
+                //     write(i, "Adrian Kokot", strlen("Adrian Kokot"));
+                //     FD_CLR(i, &resp1);
+                // } else if(FD_ISSET(i, &resp2)) {
+                //     write(i, "Wiktor Szymanski", strlen("Wiktor Szymanski"));
+                //     FD_CLR(i, &resp2);
+                // } else {
+                //     write(i, errorMessage, BUFFER_SIZE);
+                // }
 
                 close(i);
-                FD_CLR(i, &wmask);
+                FD_CLR(i, &writeFilesDescriptors);
                 if (i == fdMax)
-                    while (fdMax > serverFd && !FD_ISSET(fdMax, &mask) && !FD_ISSET(fdMax, &wmask))
+                    while (fdMax > serverFd && !FD_ISSET(fdMax, &filesDescriptors) && !FD_ISSET(fdMax, &writeFilesDescriptors))
                         fdMax -= 1;
             }
-            // kolejność inna or sth
-            else if (FD_ISSET(i, &rmask)) {
-                fda -= 1;
-                FD_CLR(i, &mask);
+            else if (FD_ISSET(i, &readFilesDescriptors)) {
+                fd_count -= 1;
+                FD_CLR(i, &filesDescriptors);
                 
                 read(i, buffer, BUFFER_SIZE);
 
                 printf("SUIII %s\n\n", buffer);
 
-                if(strncmp(buffer, "148165", 6) == 0) {
-                    FD_SET(i, &resp1);
-                } else if(strncmp(buffer, "148084", 6) == 0) {
-                    FD_SET(i, &resp2);
+                std::stringstream sstream;
+                sstream << buffer;
+
+                std::string segment;
+
+                while(std::getline(sstream, segment, '\n')) {
+                    messages.push_back(segment);
                 }
 
-                FD_SET(i, &wmask);
-                FD_CLR(i, &rmask);
+                // if(strncmp(buffer, "148165", 6) == 0) {
+                //     FD_SET(i, &resp1);
+                // } else if(strncmp(buffer, "148084", 6) == 0) {
+                //     FD_SET(i, &resp2);
+                // }
+
+                FD_SET(i, &writeFilesDescriptors);
+                FD_CLR(i, &readFilesDescriptors);
             }
         }
     }
