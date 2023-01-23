@@ -28,19 +28,19 @@ void* cthread(void* arg) {
 
     printf("\e[32m[CONNECTED]\e[0m: %s\n\e[33m[MESSAGE]\e[0m: ", inet_ntoa((struct in_addr)c -> caddr.sin_addr));
 
-    read(c->cfd, buffer, BUFFER_SIZE);
+    while(1) {
+        read(c->cfd, buffer, BUFFER_SIZE);
 
-    printf("%s\n\n", buffer);
+        printf("%s\n\n", buffer);
 
-    if(strncmp(buffer, "148165", 6) == 0) {
-        write(c->cfd, "Adrian Kokot", strlen("Adrian Kokot"));
-    } else if(strncmp(buffer, "148084", 6) == 0) {
-        write(c->cfd, "Wiktor Szymanski", strlen("Wiktor Szymanski"));
-    } else {
-        write(c->cfd, errorMessage, BUFFER_SIZE);
+        if(strncmp(buffer, "148165", 6) == 0) {
+            write(c->cfd, "Adrian Kokot", strlen("Adrian Kokot"));
+        } else if(strncmp(buffer, "148084", 6) == 0) {
+            write(c->cfd, "Wiktor Szymanski", strlen("Wiktor Szymanski"));
+        } else {
+            write(c->cfd, errorMessage, BUFFER_SIZE);
+        }
     }
-
-    return nullptr;
 }
 
 int main(int argc, char **argv) {
@@ -75,7 +75,6 @@ int main(int argc, char **argv) {
         c -> cfd = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
         pthread_create(&tid, NULL, cthread, c);
         pthread_detach(tid);
-        
     }
 
     close(serverFd);
