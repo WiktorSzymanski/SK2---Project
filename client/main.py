@@ -4,14 +4,14 @@ import tkinter as tk
 from tkinter import *
 from tkinter import simpledialog, scrolledtext
 
-HOST = '127.0.0.1'
+HOST = '192.168.055.108'
 PORT = 1234
 
 
 class Client:
   def __init__(self, host, port):
-    # self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # self.sock.connect((host, port))
+    self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    self.sock.connect((host, port))
     msg = tk.Tk()
     msg.withdraw()
     self.nickname = simpledialog.askstring("Nickname", "Please enter your nickname", parent=msg)
@@ -28,7 +28,7 @@ class Client:
 
   def gui_loop(self):
     self.win = tk.Tk()
-    self.win.iconbitmap("static/mail.ico")
+    self.win.iconbitmap("./static/mail.ico")
     self.win.title('BSD Socket based communicator')
     self.win.configure()
 

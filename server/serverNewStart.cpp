@@ -80,11 +80,26 @@ int main(int argc, char **argv) {
                 fda -= 1;
                 
                 if(FD_ISSET(i, &resp1)) {
-                    write(i, "Adrian Kokot", strlen("Adrian Kokot"));
+                    char *r = "Odpowiedz 1\n";
+                    int len = strlen(r);
+                    int sentCount = 0;
+                   do{
+                   	sentCount = write(i,r, strlen(r));
+                   	r += sentCount;
+                   } while(sentCount < len);
                     FD_CLR(i, &resp1);
+                    
                 } else if(FD_ISSET(i, &resp2)) {
-                    write(i, "Wiktor Szymanski", strlen("Wiktor Szymanski"));
-                    FD_CLR(i, &resp2);
+                
+                    char *r = "Odpowiedz 2\n";
+                    int len = strlen(r);
+                    int sentCount = 0;
+                   do{
+                   	int temp = write(i,r+sentCount,strlen(r));
+                   	r += temp;
+                   	sentCount += temp;
+                   } while(sentCount < len);
+                    FD_CLR(i, &resp1);
                 } else {
                     write(i, errorMessage, BUFFER_SIZE);
                 }
