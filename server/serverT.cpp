@@ -14,6 +14,7 @@
 #include <vector>
 #include <sstream>
 #include <map>
+#include <set>
 
 #define BUFFER_SIZE 512
 #define BACKLOG_SIZE 5
@@ -30,6 +31,7 @@ struct User {
     std::string username;
     int userFileDescriptor;
     struct sockaddr_in userAddr;
+    std::set<std::string>* friends;
 };
 
 struct ThreadData {
@@ -40,17 +42,16 @@ struct ThreadData {
 };
 
 void sendMessage(int mode, Message* message, User* user) {
-    std::string stringMessage = std::to_string(mode) + ";" + message->from + ";" + message->message + ";";
+    std::string stringMessage = std::to_string(mode) + ";" + message->from + ";" + message->message + "\n";
     write(user->userFileDescriptor, stringMessage.c_str(), strlen(stringMessage.c_str()));
 };
 
 void* cthread(void* arg) {
-    char* buffer = new char[BUFFER_SIZE];
-    char errorMessage[BUFFER_SIZE] = "\e[31mERROR\e[0m";
     struct ThreadData* tData = (struct ThreadData*)arg;
     int readRet;
+    char* buffer = new char[BUFFER_SIZE];
 
-    printf("\e[32m[CONNECTED]\e[0m: %s\n\e[33m[MESSAGE]\e[0m: ", inet_ntoa((struct in_addr)tData -> user.userAddr.sin_addr));
+    printf("\e[32m[CONNECTED]\e[0m: %s", inet_ntoa((struct in_addr)tData -> user.userAddr.sin_addr));
 
     while(1) {
         readRet = read(tData -> user.userFileDescriptor, buffer, BUFFER_SIZE);
@@ -61,32 +62,31 @@ void* cthread(void* arg) {
         } else if (readRet == 0) {
             continue;
         }
-            // printf(buffer);
-
             std::stringstream sstream;
-            sstream << buffer;
-
             std::string mode, to, message;
+
+            sstream << buffer;
 
             std::getline(sstream, mode, ';');
             std::getline(sstream, to, ';');
             std::getline(sstream, message, ';');
 
-            std::cout << "\nMode: " << mode << "\nTo: " << to << "\nMessage: " << message << "\n\n";
+            // std::cout << "\nMode: " << mode << "\nTo: " << to << "\nMessage: " << message << "\n\n";
 
             if (mode.compare("1") == 0) {
-                std::cout << "Loging in: " << to << "\n";
-                tData->user.username = to;
                 bool uniqName = true;
                 Message message;
                 message.from = "SYS";
 
+                tData->user.username = to;
+                std::cout << "Loging in: " << tData->user.username << "\n";
+
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
                     if (tData->user.username.compare(it->username) == 0) {
-                        std::cout << "Error - this username already exists\n";
+                        uniqName = false;
                         message.message = "Error - username " + tData->user.username + " already exists!";
                         sendMessage(1, &message, &tData -> user);
-                        uniqName = false;
+                        std::cout << "Error: " << tData->user.username << " username already exists\n";
                     }
                 }
 
@@ -144,6 +144,48 @@ void* cthread(void* arg) {
                 }
 
 
+            } else if (mode.compare("3") == 0) {
+                std::cout << "Sending current users list to: " << tData->user.username  << "\n";
+                Message message;
+                message.from = "SYS";
+                message.message = "";
+
+                for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+                    if (tData->user.username.compare(it->username) == 0) {
+                        continue;
+                    }
+
+                    if (message.message != "") {
+                        message.message += ":";
+                    }
+                    message.message += it->username;
+                }
+
+                sendMessage(1, &message, &tData -> user);
+            } else if (mode.compare("4") == 0) {
+                std::cout << "Adding friend to user: " << tData->user.username  << "\n";
+
+                if (to.compare("") != 0) {
+                    tData->user.friends->insert(to);
+                }
+
+                Message message;
+                message.from = "SYS";
+                message.message = "";
+
+                if (tData->user.friends == nullptr) {
+                    sendMessage(4, &message, &tData -> user);
+                    continue;
+                }
+
+                for (auto f : *tData->user.friends) {
+                    if (message.message != "") {
+                        message.message += ":";
+                    }
+                    message.message += f;
+                }
+                
+                sendMessage(4, &message, &tData -> user);
             } else if (mode.compare("9") == 0) {
                 std::cout << "User " << tData -> user.username << " is disconnecting" << std::endl;
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
@@ -159,8 +201,6 @@ void* cthread(void* arg) {
                 close(tData->user.userFileDescriptor);
                 break;
             }
-
-            // write(tData -> user.userFileDescriptor, buffer, strlen(buffer));
 
 
         memset(buffer, 0, 512);
@@ -181,6 +221,8 @@ void* cthread(void* arg) {
             }
         }
     printf("Connection ended\n");
+
+    return nullptr;
 }
 
 int main(int argc, char **argv) {
@@ -191,9 +233,7 @@ int main(int argc, char **argv) {
     pthread_t tid;
     struct sockaddr_in serverAddress, clientAddress;
     
-    int serverFd = socket(PF_INET, SOCK_STREAM, 0),
-        cfd, 
-        on = 1;
+    int serverFd = socket(PF_INET, SOCK_STREAM, 0), on = 1;
 
     // Mówi systemowi operacyjnemu aby uwalniał port po wyłączeniu serwera
     setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on));
@@ -218,6 +258,7 @@ int main(int argc, char **argv) {
         std::cout << "Accept next"<< std::endl;
         clientSocketLength = sizeof(client.userAddr);
         client.userFileDescriptor = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
+        client.friends = new std::set<std::string>;
         tData -> users = &users;
         tData -> users_mutex = &users_mutex;
         tData -> user = client;
