@@ -10,7 +10,6 @@ PORT = 1234
 
 class Client:
   def __init__(self, host, port):
-
     msg = tk.Tk()
     msg.withdraw()
     self.nickname = simpledialog.askstring("Nickname", "Please enter your nickname", parent=msg)
