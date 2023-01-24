@@ -149,7 +149,7 @@ class Client:
         self.users_area.insert(i, newFriend)
         message = '4;' + newFriend + ';'+ ";"
         self.sock.send(message.encode("utf-8"))
-      self.friends_set.add(newFriend)
+     # self.friends_set.add(newFriend)
 
   def write(self):
     msg =  str(self.input_msg.get('1.0', 'end').replace('\n', ''))
@@ -175,13 +175,13 @@ class Client:
 
     for i in self.messeges[self.current_reciver]:
       self.text_area.config(state="normal")
-      self.text_area.insert('end', "\n" + i)
+      self.text_area.insert('end', i)
       self.text_area.yview('end')
       self.text_area.config(state='disabled')
 
   def add_message(self, mess):
     self.text_area.config(state="normal")
-    self.text_area.insert('end', "\n" + mess)
+    self.text_area.insert('end',  mess + '\n')
     self.text_area.yview('end')
     self.text_area.config(state='disabled')
 
@@ -197,10 +197,10 @@ class Client:
           if mes_arr[0] == '1':
             print("Set connection with server")
           elif mes_arr[0] == '2':
-            self.messeges[mes_arr[1]].append(mes_arr[1] + ": " + mes_arr[2])
+            self.messeges[mes_arr[1]].append("\t"+mes_arr[1] + ": " + mes_arr[2].replace('\n',''))
             if mes_arr[1] == self.current_reciver:
-              self.add_message(mes_arr[1] + ": " + mes_arr[2])
-          elif mes_arr[0] == '3':
+              self.add_message("\t"+mes_arr[1] + ": " + mes_arr[2])
+          elif mes_arr[0] == '4':
             self.friends_set.clear()
             for i in mes_arr[2].split(':'):
               self.friends_set.add(i)
@@ -210,9 +210,9 @@ class Client:
     else:
       return
   def update_friends(self):
-    message = "3;.;.;"
+    message = "4;;;"
     self.sock.send(message.encode("utf-8"))
-    print(message)
+    # print(message)
 
 
 if __name__ == "__main__":
