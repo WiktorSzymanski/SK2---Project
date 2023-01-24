@@ -29,6 +29,10 @@ struct User {
     std::string username;
     int userFileDescriptor;
     struct sockaddr_in userAddr;
+};
+
+struct ThreadData {
+    User user;
     std::vector<Message> messages;
     std::vector<User>* users;
     pthread_mutex_t* users_mutex;
@@ -38,13 +42,13 @@ struct User {
 void* cthread(void* arg) {
     char* buffer = new char[BUFFER_SIZE];
     char errorMessage[BUFFER_SIZE] = "\e[31mERROR\e[0m";
-    struct User* client = (struct User*)arg;
+    struct ThreadData* tData = (struct ThreadData*)arg;
     int readRet;
 
-    printf("\e[32m[CONNECTED]\e[0m: %s\n\e[33m[MESSAGE]\e[0m: ", inet_ntoa((struct in_addr)client -> userAddr.sin_addr));
+    printf("\e[32m[CONNECTED]\e[0m: %s\n\e[33m[MESSAGE]\e[0m: ", inet_ntoa((struct in_addr)tData -> user.userAddr.sin_addr));
 
     while(1) {
-        readRet = read(client->userFileDescriptor, buffer, BUFFER_SIZE);
+        readRet = read(tData -> user.userFileDescriptor, buffer, BUFFER_SIZE);
 
         if (readRet == -1) {
             printf("Reading error - braeaking loop\n");
@@ -65,13 +69,26 @@ void* cthread(void* arg) {
 
             std::cout << "\nMode: " << mode << "\nTo: " << to << "\nMessage: " << message << "\n\n";
 
-            if (mode.compare("1") == 0) {
-                std::cout << "Loging in: " << to;
+            tData->user.username = to;
 
-                for (int i = 0; i < client->users.size(); i++)
+            if (mode.compare("1") == 0) {
+                std::cout << "Loging in: " << to << "\n";
+                bool uniqName = true;
+
+                for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+                    if (tData->user.username.compare(it->username) == 0) {
+                        std::cout << "Error - this username already exists\n";
+                        uniqName = false;
+                    }
+                }
+
+                if (uniqName) {
+                    std::cout << "Added " << tData->user.username << " to users list\n";
+                    tData->users->push_back(tData->user);
+                }
             }
 
-            write(client->userFileDescriptor, buffer, strlen(buffer));
+            write(tData -> user.userFileDescriptor, buffer, strlen(buffer));
 
 
             memset(buffer, 0, 512);
@@ -107,15 +124,17 @@ int main(int argc, char **argv) {
     listen(serverFd, BACKLOG_SIZE);
 
     while(1) {
-        struct User* client = new User();
+        struct User client;
+        struct ThreadData* tData = new ThreadData();
 
-        clientSocketLength = sizeof(client->userAddr);
         std::cout << "Accept next"<< std::endl;
-        client -> userFileDescriptor = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
-        client -> users = &users;
-        client -> users_mutex = &users_mutex;
-        std::cout << client -> userFileDescriptor << std::endl;
-        pthread_create(&tid, NULL, cthread, client);
+        clientSocketLength = sizeof(client.userAddr);
+        client.userFileDescriptor = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
+        tData -> users = &users;
+        tData -> users_mutex = &users_mutex;
+        tData -> user = client;
+        std::cout << client.userFileDescriptor << std::endl;
+        pthread_create(&tid, NULL, cthread, tData);
         pthread_detach(tid);
     }
 
