@@ -19,6 +19,8 @@ class Client:
     try:
       self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.sock.connect((host, port))
+      message = "0;"+str(self.nickname)
+      self.sock.send(message.encode("utf-8"))
     except:
       print("Some issue with connection")
     self.gui_done = False
@@ -97,17 +99,17 @@ class Client:
     self.frameright_input.pack(side=BOTTOM, fill=BOTH, expand=1)
 
     self.gui_done = True
-    self.win.protocol("WM_DELETE_WINDOW", self.stop)
+    self.win.protocol("WM_DELETE_WINDOW", self.on_closing)
     self.win.mainloop()
 
-  def stop(self):
-    message = str(self.nickname) + ":exit"
+  def on_closing(self):
+    message = "9:" + str(self.nickname)
     self.sock.send(message.encode("utf-8"))
     self.running = False
-    self.win.destroy()
+    self.win.after(0, self.win.destroy)
     self.sock.close()
-    print("User exit system")
     exit(0)
+
 
 
 
@@ -116,13 +118,13 @@ class Client:
 
   def write(self):
     # message = str(self.nickname)+'\n'+str(self.current_reciver)+'\n'+str(self.input_msg.get('1.0', 'end'))
-    message = str(self.nickname)+':'+str(self.current_reciver)+':'+str(self.input_msg.get('1.0', 'end'))
+    message = '1:'+str(self.current_reciver)+':'+str(self.input_msg.get('1.0', 'end'))
     self.sock.send(message.encode("utf-8"))
     print(message)
     self.input_msg.delete('1.0', 'end')
 
   def writeOnEnter(self, arg):
-    message = str(self.nickname) + ':' + str(self.current_reciver) + ':' + str(self.input_msg.get('1.0', 'end'))
+    message =  '1:' + str(self.current_reciver) + ':' + str(self.input_msg.get('1.0', 'end'))
     self.sock.send(message.encode("utf-8"))
     print(message)
     self.input_msg.delete('1.0', 'end')
@@ -131,17 +133,14 @@ class Client:
     while self.running:
       try:
         message = self.sock.recv(512).decode('utf-8')
-        if self.gui_done:
+        if message:
           self.text_area.config(state="normal")
-          self.text_area.insert('end', message)
+          self.text_area.insert('end', "\n"+message)
           self.text_area.yview('end')
           self.text_area.config(state='disabled')
-      except ConnectionAbortedError:
-        break
       except:
-        print("error")
-        self.sock.close()
-        break
+        pass
+
 
 
 client = Client(HOST, PORT)
