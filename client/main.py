@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import *
 from tkinter import simpledialog, scrolledtext
 
-HOST = '192.168.55.105'
+HOST = '192.168.55.106'
 PORT = 1234
 
 
@@ -82,7 +82,7 @@ class Client:
 
     self.input_msg = tk.Text(self.sending_frame, height=2)
     self.input_msg.pack(side=LEFT, fill=BOTH, expand=1, padx=5, pady=5)
-    self.win.bind('<Return>', self.write)
+    self.win.bind('<Return>', self.writeOnEnter)
     self.input_btn = tk.Button(self.sending_frame, text=">", command=self.write)
     self.input_btn.config(font=("Arial", 16))
     self.input_btn.pack(side=RIGHT, fill=BOTH, expand=1, padx=5, pady=5)
@@ -101,10 +101,10 @@ class Client:
     self.win.mainloop()
 
   def stop(self):
+    message = str(self.nickname) + ":exit"
+    self.sock.send(message.encode("utf-8"))
     self.running = False
     self.win.destroy()
-    message = "wyjeb mnie"
-    self.sock.send(message.encode("utf-8"))
     self.sock.close()
     print("User exit system")
     exit(0)
@@ -117,6 +117,12 @@ class Client:
   def write(self):
     # message = str(self.nickname)+'\n'+str(self.current_reciver)+'\n'+str(self.input_msg.get('1.0', 'end'))
     message = str(self.nickname)+':'+str(self.current_reciver)+':'+str(self.input_msg.get('1.0', 'end'))
+    self.sock.send(message.encode("utf-8"))
+    print(message)
+    self.input_msg.delete('1.0', 'end')
+
+  def writeOnEnter(self, arg):
+    message = str(self.nickname) + ':' + str(self.current_reciver) + ':' + str(self.input_msg.get('1.0', 'end'))
     self.sock.send(message.encode("utf-8"))
     print(message)
     self.input_msg.delete('1.0', 'end')
