@@ -99,6 +99,15 @@ void* cthread(void* arg) {
                 message.message = "Logged in as " + tData->user.username;
                 std::cout << "Send SYS message" << std::endl;
                 sendMessage(1, &message, &tData -> user);
+                for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
+                        if (tData->user.username.compare(it->first) == 0) {
+                            for (auto m : it->second) {
+                                sendMessage(2, &m, &tData -> user);
+                            }
+                        }
+                        tData->messagesData->erase(it);
+                        break;
+                    }
             } else if (mode.compare("2") == 0) {
                 bool userIsActive = false;
                 std::cout << "Sending data\nFrom: " << tData -> user.username << "\nTo: " << to << std::endl;
@@ -110,7 +119,7 @@ void* cthread(void* arg) {
 
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
                     if (to.compare(it->username) == 0) {
-                        sendMessage(2, &mess, &tData ->user);
+                        sendMessage(2, &mess, it.base());
                         userIsActive = true;
                         break;
                     }
@@ -136,12 +145,12 @@ void* cthread(void* arg) {
 
 
             } else if (mode.compare("9") == 0) {
-                std::cout << "User " << tData -> user.username << " is disconecting" << std::endl;
+                std::cout << "User " << tData -> user.username << " is disconnecting" << std::endl;
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
                     if (tData->user.username.compare(it->username) == 0) {
                         Message message;
                         message.from = "SYS";
-                        message.message = "Disconecting...";
+                        message.message = "Disconnecting...";
                         sendMessage(9, &message, &tData -> user);
                         tData->users->erase(it);
                         break;
