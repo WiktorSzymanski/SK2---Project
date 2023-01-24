@@ -13,6 +13,7 @@
 #include <iostream>
 #include <vector>
 #include <sstream>
+#include <map>
 
 #define BUFFER_SIZE 512
 #define BACKLOG_SIZE 5
@@ -33,11 +34,15 @@ struct User {
 
 struct ThreadData {
     User user;
-    std::vector<Message> messages;
     std::vector<User>* users;
     pthread_mutex_t* users_mutex;
+    std::map<std::string, std::vector<Message>>* messagesData;
 };
 
+void sendMessage(int mode, Message* message, User* user) {
+    std::string stringMessage = mode + ";" + message->from + ";" + message->message + ";";
+    write(user->userFileDescriptor, stringMessage.c_str(), strlen(stringMessage.c_str()));
+};
 
 void* cthread(void* arg) {
     char* buffer = new char[BUFFER_SIZE];
@@ -90,6 +95,7 @@ void* cthread(void* arg) {
 
                 write(tData -> user.userFileDescriptor, buffer, strlen(buffer));
             } else if (mode.compare("2") == 0) {
+                bool userIsActive = false;
                 std::cout << "Sending data\nFrom: " << tData -> user.username << "\nTo: " << to << std::endl;
 
                 Message mess;
@@ -100,9 +106,30 @@ void* cthread(void* arg) {
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
                     if (to.compare(it->username) == 0) {
                         write(it->userFileDescriptor, buffer, strlen(buffer));
+                        userIsActive = true;
                         break;
                     }
                 }
+
+                if (!userIsActive) {
+                    bool newInThis = true;
+                    // std::cout << "Non dilivered messages:" << std::endl;
+                    for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
+                        // std::cout << it->first << std::endl;
+                        if (to.compare(it->first) == 0) {
+                            it->second.push_back(mess);
+                            newInThis = false;
+                        }
+                    }
+
+                    if (newInThis) {
+                        std::vector<Message> userMessages;
+                        userMessages.push_back(mess);
+                        tData->messagesData->insert(std::make_pair(to, userMessages));
+                    }
+                }
+
+
             } else if (mode.compare("9") == 0) {
                 std::cout << "User " << tData -> user.username << " is disconecting" << std::endl;
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
@@ -119,17 +146,29 @@ void* cthread(void* arg) {
             // write(tData -> user.userFileDescriptor, buffer, strlen(buffer));
 
 
-            memset(buffer, 0, 512);
-            std::cout << "\tCurrent User List:\n";
-            for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
-                std::cout << "\t\t" << it->username << std::endl;
+        memset(buffer, 0, 512);
+        std::cout << "\tCurrent User List:\n";
+        for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+            std::cout << "\t\t" << it->username << std::endl;
+        }
+
+
+
+        std::cout << "\tCurrent Non dilivered messages:\n";
+        for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
+                std::cout << "\t\t" << it->first << std::endl;
+
+                for (auto m : it->second) {
+                    std::cout << "\t\t\t\t" << m.from << " : " << m.message << std::endl; 
+                }
             }
-    }
+        }
     printf("Connection ended\n");
 }
 
 int main(int argc, char **argv) {
     std::vector<User> users;
+    std::map<std::string, std::vector<Message>>* messegesData = new std::map<std::string, std::vector<Message>>;
 
     socklen_t clientSocketLength;
     pthread_t tid;
@@ -165,6 +204,7 @@ int main(int argc, char **argv) {
         tData -> users = &users;
         tData -> users_mutex = &users_mutex;
         tData -> user = client;
+        tData -> messagesData = messegesData;
         std::cout << client.userFileDescriptor << std::endl;
         pthread_create(&tid, NULL, cthread, tData);
         pthread_detach(tid);
