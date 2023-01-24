@@ -69,10 +69,9 @@ void* cthread(void* arg) {
 
             std::cout << "\nMode: " << mode << "\nTo: " << to << "\nMessage: " << message << "\n\n";
 
-            tData->user.username = to;
-
             if (mode.compare("1") == 0) {
                 std::cout << "Loging in: " << to << "\n";
+                tData->user.username = to;
                 bool uniqName = true;
 
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
@@ -85,13 +84,46 @@ void* cthread(void* arg) {
                 if (uniqName) {
                     std::cout << "Added " << tData->user.username << " to users list\n";
                     tData->users->push_back(tData->user);
+                } else {
+                    break;
                 }
+
+                write(tData -> user.userFileDescriptor, buffer, strlen(buffer));
+            } else if (mode.compare("2") == 0) {
+                std::cout << "Sending data\nFrom: " << tData -> user.username << "\nTo: " << to << std::endl;
+
+                Message mess;
+
+                mess.from = tData->user.username;
+                mess.message = message;
+
+                for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+                    if (to.compare(it->username) == 0) {
+                        write(it->userFileDescriptor, buffer, strlen(buffer));
+                        break;
+                    }
+                }
+            } else if (mode.compare("9") == 0) {
+                std::cout << "User " << tData -> user.username << " is disconecting" << std::endl;
+                for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+                    if (tData->user.username.compare(it->username) == 0) {
+                        write(it->userFileDescriptor, "Disconected", strlen("Disconected"));
+                        tData->users->erase(it);
+                        break;
+                    }
+                }
+                close(tData->user.userFileDescriptor);
+                break;
             }
 
-            write(tData -> user.userFileDescriptor, buffer, strlen(buffer));
+            // write(tData -> user.userFileDescriptor, buffer, strlen(buffer));
 
 
             memset(buffer, 0, 512);
+            std::cout << "\tCurrent User List:\n";
+            for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+                std::cout << "\t\t" << it->username << std::endl;
+            }
     }
     printf("Connection ended\n");
 }
