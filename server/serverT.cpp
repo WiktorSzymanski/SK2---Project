@@ -40,7 +40,7 @@ struct ThreadData {
 };
 
 void sendMessage(int mode, Message* message, User* user) {
-    std::string stringMessage = mode + ";" + message->from + ";" + message->message + ";";
+    std::string stringMessage = std::to_string(mode) + ";" + message->from + ";" + message->message + ";";
     write(user->userFileDescriptor, stringMessage.c_str(), strlen(stringMessage.c_str()));
 };
 
@@ -78,22 +78,27 @@ void* cthread(void* arg) {
                 std::cout << "Loging in: " << to << "\n";
                 tData->user.username = to;
                 bool uniqName = true;
+                Message message;
+                message.from = "SYS";
 
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
                     if (tData->user.username.compare(it->username) == 0) {
                         std::cout << "Error - this username already exists\n";
+                        message.message = "Error - username " + tData->user.username + " already exists!";
+                        sendMessage(1, &message, &tData -> user);
                         uniqName = false;
                     }
                 }
 
-                if (uniqName) {
-                    std::cout << "Added " << tData->user.username << " to users list\n";
-                    tData->users->push_back(tData->user);
-                } else {
+                if (!uniqName) {
                     break;
                 }
+                std::cout << "Added " << tData->user.username << " to users list\n";
+                tData->users->push_back(tData->user);
 
-                write(tData -> user.userFileDescriptor, buffer, strlen(buffer));
+                message.message = "Logged in as " + tData->user.username;
+                std::cout << "Send SYS message" << std::endl;
+                sendMessage(1, &message, &tData -> user);
             } else if (mode.compare("2") == 0) {
                 bool userIsActive = false;
                 std::cout << "Sending data\nFrom: " << tData -> user.username << "\nTo: " << to << std::endl;
@@ -105,7 +110,7 @@ void* cthread(void* arg) {
 
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
                     if (to.compare(it->username) == 0) {
-                        write(it->userFileDescriptor, buffer, strlen(buffer));
+                        sendMessage(2, &mess, &tData ->user);
                         userIsActive = true;
                         break;
                     }
@@ -134,7 +139,10 @@ void* cthread(void* arg) {
                 std::cout << "User " << tData -> user.username << " is disconecting" << std::endl;
                 for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
                     if (tData->user.username.compare(it->username) == 0) {
-                        write(it->userFileDescriptor, "Disconected", strlen("Disconected"));
+                        Message message;
+                        message.from = "SYS";
+                        message.message = "Disconecting...";
+                        sendMessage(9, &message, &tData -> user);
                         tData->users->erase(it);
                         break;
                     }
