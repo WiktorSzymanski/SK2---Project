@@ -31,7 +31,6 @@ struct User {
     std::string username;
     int userFileDescriptor;
     struct sockaddr_in userAddr;
-    std::set<std::string>* friends;
 };
 
 struct ThreadData {
@@ -39,6 +38,7 @@ struct ThreadData {
     std::vector<User>* users;
     pthread_mutex_t* users_mutex;
     std::map<std::string, std::vector<Message>>* messagesData;
+    std::map<std::string, std::set<std::string>>* friends;
 };
 
 void sendMessage(int mode, Message* message, User* user) {
@@ -166,23 +166,37 @@ void* cthread(void* arg) {
                 std::cout << "Adding friend to user: " << tData->user.username  << "\n";
 
                 if (to.compare("") != 0) {
-                    tData->user.friends->insert(to);
+                    bool newInThis = true;
+                    for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
+                        std::cout << "Yoooooo Adding " << to << std::endl;
+                        if (tData->user.username.compare(it->first) == 0) {
+                            it->second.insert(to);
+                            newInThis = false;
+                        }
+                    }
+
+                    if (newInThis) {
+                        std::cout << "Yoooooo first friend: " << to << std::endl;
+                        std::set<std::string> friends;
+                        friends.insert(to);
+                        tData->friends->insert(std::make_pair(tData->user.username, friends));
+                    }
                 }
 
                 Message message;
                 message.from = "SYS";
                 message.message = "";
 
-                if (tData->user.friends == nullptr) {
-                    sendMessage(4, &message, &tData -> user);
-                    continue;
-                }
-
-                for (auto f : *tData->user.friends) {
-                    if (message.message != "") {
-                        message.message += ":";
+                for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
+                    if (tData->user.username.compare(it->first) == 0) {
+                        for (auto f : it->second) {
+                            if (message.message != "") {
+                                message.message += ":";
+                            }
+                            message.message += f;
+                        }
                     }
-                    message.message += f;
+                    break;
                 }
                 
                 sendMessage(4, &message, &tData -> user);
@@ -213,21 +227,32 @@ void* cthread(void* arg) {
 
         std::cout << "\tCurrent Non dilivered messages:\n";
         for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
-                std::cout << "\t\t" << it->first << std::endl;
+                std::cout << "\t" << it->first << std::endl;
 
                 for (auto m : it->second) {
-                    std::cout << "\t\t\t\t" << m.from << " : " << m.message << std::endl; 
+                    std::cout << "\t\t" << m.from << " : " << m.message << std::endl; 
+                }
+            }
+                std::cout << "Friends Lists:\n";
+        for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
+                std::cout << "\t" << it->first << std::endl;
+
+                for (auto f : it->second) {
+                    std::cout << "\t\t" << f << std::endl; 
                 }
             }
         }
-    printf("Connection ended\n");
+
+    printf("Server ended\n");
 
     return nullptr;
 }
 
 int main(int argc, char **argv) {
     std::vector<User> users;
-    std::map<std::string, std::vector<Message>>* messegesData = new std::map<std::string, std::vector<Message>>;
+    std::map<std::string, std::vector<Message>>* mMessagesData = new std::map<std::string, std::vector<Message>>;
+    std::map<std::string, std::set<std::string>>* mFriendsData = new std::map<std::string, std::set<std::string>>;
+
 
     socklen_t clientSocketLength;
     pthread_t tid;
@@ -258,11 +283,11 @@ int main(int argc, char **argv) {
         std::cout << "Accept next"<< std::endl;
         clientSocketLength = sizeof(client.userAddr);
         client.userFileDescriptor = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
-        client.friends = new std::set<std::string>;
         tData -> users = &users;
         tData -> users_mutex = &users_mutex;
         tData -> user = client;
-        tData -> messagesData = messegesData;
+        tData -> messagesData = mMessagesData;
+        tData -> friends = mFriendsData; 
         std::cout << client.userFileDescriptor << std::endl;
         pthread_create(&tid, NULL, cthread, tData);
         pthread_detach(tid);
