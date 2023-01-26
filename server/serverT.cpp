@@ -15,10 +15,14 @@
 #include <sstream>
 #include <map>
 #include <set>
+#include <cstring>
 
 #define BUFFER_SIZE 512
-#define BACKLOG_SIZE 5
+#define BACKLOG_SIZE 10
 #define SERVER_PORT 1234
+#define ERROR "\e[31m[ERROR]: \e[0m"
+#define ALLERT "\e[31m[ALLERT]: \e[0m"
+#define INFO "\e[33m[INFO]: \e[0m"
 
 pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -46,8 +50,48 @@ void sendMessage(int mode, Message* message, User* user) {
     write(user->userFileDescriptor, stringMessage.c_str(), strlen(stringMessage.c_str()));
 };
 
+void printLogSeparator(std::string section) {
+    if (section != "") section = " " + section + " ";
+    
+    int length = 60;
+    int left_padding = 15;
+    int right_padding = length - section.length() - left_padding;
+
+
+    std::cout << "\n" << std::string(left_padding, '=') <<  section << std::string(right_padding, '=') << std::endl;
+}
+
+void printActiveStatusLoggs(ThreadData* tData) {
+
+    printLogSeparator("CURRENT ACTIVE USERS");
+    for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+        std::cout << "\t" << it->username << std::endl;
+    }
+    printLogSeparator("");
+
+    printLogSeparator("CURRENT NON-DILIVERED MESSAGES");
+    for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
+            std::cout << "\t" << it->first << std::endl;
+
+            for (auto m : it->second) {
+                std::cout << "\t\t" << m.from << " : " << m.message << std::endl; 
+            }
+        }
+    printLogSeparator("");
+
+    printLogSeparator("CURRENT FRIENDS LISTS");
+    for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
+            std::cout << "\t" << it->first << std::endl;
+
+            for (auto f : it->second) {
+                std::cout << "\t\t" << f << std::endl; 
+            }
+        }
+    printLogSeparator("");
+}
+
 bool disconnectProcess(ThreadData* tData, std::string mode) {
-    std::cout << "User " << tData -> user.username << " is disconnecting" << std::endl;
+    std::cout << INFO << "User " << tData -> user.username << " is disconnecting" << std::endl;
     for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
         if (tData->user.username.compare(it->username) == 0) {
             Message message;
@@ -64,12 +108,11 @@ bool disconnectProcess(ThreadData* tData, std::string mode) {
 }
 
 void friendsProcess(ThreadData* tData, std::string mode, std::string to){
-    std::cout << "Adding friend to user: " << tData->user.username  << "\n";
+    std::cout << INFO << "Adding friend to user: " << tData->user.username  << "\n";
 
                 if (to.compare("") != 0) {
                     bool newInThis = true;
                     for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
-                        std::cout << "Yoooooo Adding " << to << std::endl;
                         if (tData->user.username.compare(it->first) == 0) {
                             it->second.insert(to);
                             newInThis = false;
@@ -77,7 +120,6 @@ void friendsProcess(ThreadData* tData, std::string mode, std::string to){
                     }
 
                     if (newInThis) {
-                        std::cout << "Yoooooo first friend: " << to << std::endl;
                         std::set<std::string> friends;
                         friends.insert(to);
                         tData->friends->insert(std::make_pair(tData->user.username, friends));
@@ -104,7 +146,7 @@ void friendsProcess(ThreadData* tData, std::string mode, std::string to){
 }
 
 void currentUsersProcess(ThreadData* tData, std::string mode, std::string to) {
-    std::cout << "Sending current users list to: " << tData->user.username  << "\n";
+    std::cout << INFO << "Sending current users list to: " << tData->user.username  << "\n";
     Message message;
     message.from = "SYS";
     message.message = "";
@@ -125,7 +167,7 @@ void currentUsersProcess(ThreadData* tData, std::string mode, std::string to) {
 
 void messageProcess(ThreadData* tData, std::string mode, std::string to, std::string message) {
     bool userIsActive = false;
-    std::cout << "Sending data\nFrom: " << tData -> user.username << "\nTo: " << to << std::endl;
+    std::cout << INFO << "Sending data\n\tFrom: " << tData -> user.username << "\n\tTo: " << to << std::endl;
 
     Message mess;
 
@@ -142,9 +184,7 @@ void messageProcess(ThreadData* tData, std::string mode, std::string to, std::st
 
     if (!userIsActive) {
         bool newInThis = true;
-        // std::cout << "Non dilivered messages:" << std::endl;
         for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
-            // std::cout << it->first << std::endl;
             if (to.compare(it->first) == 0) {
                 it->second.push_back(mess);
                 newInThis = false;
@@ -164,22 +204,22 @@ bool loginUser(ThreadData* tData, std::string mode, std::string to) {
     message.from = "SYS";
 
     tData->user.username = to;
-    std::cout << "Loging in: " << tData->user.username << "\n";
+    std::cout << INFO << "Loging in: " << tData->user.username << "\n";
 
     for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
         if (tData->user.username.compare(it->username) == 0) {
-            message.message = "Error - username " + tData->user.username + " already exists!";
+            message.message = "ERROR: username " + tData->user.username + " already exists!";
             sendMessage(9, &message, &tData -> user);
-            std::cout << "Error: " << tData->user.username << " username already exists\n";
+            std::cout << ERROR << tData->user.username << " username already exists\n";
 
             return false;
         }
     }
-    std::cout << "Added " << tData->user.username << " to users list\n";
+    std::cout << INFO << "Added " << tData->user.username << " to users list\n";
     tData->users->push_back(tData->user);
 
     message.message = "Logged in as " + tData->user.username;
-    std::cout << "Send SYS message" << std::endl;
+    std::cout << INFO << "Send SYS message" << std::endl;
     sendMessage(1, &message, &tData -> user);
     for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
             if (tData->user.username.compare(it->first) == 0) {
@@ -194,18 +234,17 @@ bool loginUser(ThreadData* tData, std::string mode, std::string to) {
     return true;
 }
 
-void* cthread(void* arg) {
+void* clientThread(void* arg) {
     struct ThreadData* tData = (struct ThreadData*)arg;
-    int readRet;
     char* buffer = new char[BUFFER_SIZE];
 
-    printf("\e[32m[CONNECTED]\e[0m: %s", inet_ntoa((struct in_addr)tData -> user.userAddr.sin_addr));
+    std::cout << "\e[32m[CONNECTED]\e[0m: " << inet_ntoa((struct in_addr)tData -> user.userAddr.sin_addr) << std::endl;
 
     while(1) {
-        readRet = read(tData -> user.userFileDescriptor, buffer, BUFFER_SIZE);
+        int readRet = read(tData -> user.userFileDescriptor, buffer, BUFFER_SIZE);
 
         if (readRet == -1) {
-            printf("Reading error - braeaking loop\n");
+            std::cout << ERROR << "reading error - braeaking loop!" << std::endl;
             break;
         } else if (readRet == 0) {
             continue;
@@ -219,8 +258,6 @@ void* cthread(void* arg) {
             std::getline(sstream, to, ';');
             std::getline(sstream, message, ';');
 
-            // std::cout << "\nMode: " << mode << "\nTo: " << to << "\nMessage: " << message << "\n\n";
-
             if (mode.compare("1") == 0) {
                 if (!loginUser(tData, mode, to)) break;
             } else if (mode.compare("2") == 0) {
@@ -233,34 +270,11 @@ void* cthread(void* arg) {
                 if (disconnectProcess(tData, mode)) break;
             }
 
-
-        memset(buffer, 0, 512);
-        std::cout << "\tCurrent User List:\n";
-        for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
-            std::cout << "\t\t" << it->username << std::endl;
+        memset(buffer, '\0', BUFFER_SIZE);
+        printActiveStatusLoggs(tData);
         }
 
-
-
-        std::cout << "\tCurrent Non dilivered messages:\n";
-        for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
-                std::cout << "\t" << it->first << std::endl;
-
-                for (auto m : it->second) {
-                    std::cout << "\t\t" << m.from << " : " << m.message << std::endl; 
-                }
-            }
-                std::cout << "Friends Lists:\n";
-        for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
-                std::cout << "\t" << it->first << std::endl;
-
-                for (auto f : it->second) {
-                    std::cout << "\t\t" << f << std::endl; 
-                }
-            }
-        }
-
-    printf("User disconected\n");
+    std::cout << INFO << "User disconected" << std::endl;
 
     return nullptr;
 }
@@ -287,29 +301,43 @@ int main(int argc, char **argv) {
     int isPortAlreadyTaken = -1 == bind(serverFd, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
 
     if(isPortAlreadyTaken) {
-        printf("Couldn't open socket.\n");
+        std::cout << ERROR << "Couldn't open socket!" << std::endl;
         return EXIT_FAILURE;
     }
 
     listen(serverFd, BACKLOG_SIZE);
 
     while(1) {
+        if (users.size() >= BACKLOG_SIZE) {
+            std::cout << ALLERT << "Max users reached" << std::endl;
+            sleep(5);
+            continue;
+        }
+
         struct User client;
         struct ThreadData* tData = new ThreadData();
 
-        std::cout << "Accept next"<< std::endl;
+        std::cout << INFO << "Ready to accept..."<< std::endl;
         clientSocketLength = sizeof(client.userAddr);
         client.userFileDescriptor = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
+
         tData -> users = &users;
         tData -> users_mutex = &users_mutex;
         tData -> user = client;
         tData -> messagesData = mMessagesData;
         tData -> friends = mFriendsData; 
-        std::cout << client.userFileDescriptor << std::endl;
-        pthread_create(&tid, NULL, cthread, tData);
-        pthread_detach(tid);
-    }
 
+        pthread_create(&tid, NULL, clientThread, tData);
+        pthread_detach(tid);
+
+        if (users.size() + 1 >= BACKLOG_SIZE) {
+            std::cout << ALLERT << "Max users reached" << std::endl;
+            sleep(5);
+            continue;
+        }
+    }
+    
+    std::cout << INFO << "Server shuting down..." << std::endl;
     close(serverFd);
 
     return EXIT_SUCCESS;
