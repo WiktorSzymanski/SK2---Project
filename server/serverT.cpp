@@ -85,7 +85,7 @@ void* cthread(void* arg) {
                     if (tData->user.username.compare(it->username) == 0) {
                         uniqName = false;
                         message.message = "Error - username " + tData->user.username + " already exists!";
-                        sendMessage(1, &message, &tData -> user);
+                        sendMessage(9, &message, &tData -> user);
                         std::cout << "Error: " << tData->user.username << " username already exists\n";
                     }
                 }
@@ -243,7 +243,7 @@ void* cthread(void* arg) {
             }
         }
 
-    printf("Server ended\n");
+    printf("User disconected\n");
 
     return nullptr;
 }
