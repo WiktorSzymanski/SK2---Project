@@ -46,124 +46,25 @@ void sendMessage(int mode, Message* message, User* user) {
     write(user->userFileDescriptor, stringMessage.c_str(), strlen(stringMessage.c_str()));
 };
 
-void* cthread(void* arg) {
-    struct ThreadData* tData = (struct ThreadData*)arg;
-    int readRet;
-    char* buffer = new char[BUFFER_SIZE];
-
-    printf("\e[32m[CONNECTED]\e[0m: %s", inet_ntoa((struct in_addr)tData -> user.userAddr.sin_addr));
-
-    while(1) {
-        readRet = read(tData -> user.userFileDescriptor, buffer, BUFFER_SIZE);
-
-        if (readRet == -1) {
-            printf("Reading error - braeaking loop\n");
+bool disconnectProcess(ThreadData* tData, std::string mode) {
+    std::cout << "User " << tData -> user.username << " is disconnecting" << std::endl;
+    for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+        if (tData->user.username.compare(it->username) == 0) {
+            Message message;
+            message.from = "SYS";
+            message.message = "Disconnecting...";
+            sendMessage(9, &message, &tData -> user);
+            tData->users->erase(it);
             break;
-        } else if (readRet == 0) {
-            continue;
         }
-            std::stringstream sstream;
-            std::string mode, to, message;
+    }
 
-            sstream << buffer;
+    close(tData->user.userFileDescriptor);
+    return true;
+}
 
-            std::getline(sstream, mode, ';');
-            std::getline(sstream, to, ';');
-            std::getline(sstream, message, ';');
-
-            // std::cout << "\nMode: " << mode << "\nTo: " << to << "\nMessage: " << message << "\n\n";
-
-            if (mode.compare("1") == 0) {
-                bool uniqName = true;
-                Message message;
-                message.from = "SYS";
-
-                tData->user.username = to;
-                std::cout << "Loging in: " << tData->user.username << "\n";
-
-                for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
-                    if (tData->user.username.compare(it->username) == 0) {
-                        uniqName = false;
-                        message.message = "Error - username " + tData->user.username + " already exists!";
-                        sendMessage(9, &message, &tData -> user);
-                        std::cout << "Error: " << tData->user.username << " username already exists\n";
-                    }
-                }
-
-                if (!uniqName) {
-                    break;
-                }
-                std::cout << "Added " << tData->user.username << " to users list\n";
-                tData->users->push_back(tData->user);
-
-                message.message = "Logged in as " + tData->user.username;
-                std::cout << "Send SYS message" << std::endl;
-                sendMessage(1, &message, &tData -> user);
-                for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
-                        if (tData->user.username.compare(it->first) == 0) {
-                            for (auto m : it->second) {
-                                sendMessage(2, &m, &tData -> user);
-                            }
-                        }
-                        tData->messagesData->erase(it);
-                        break;
-                    }
-            } else if (mode.compare("2") == 0) {
-                bool userIsActive = false;
-                std::cout << "Sending data\nFrom: " << tData -> user.username << "\nTo: " << to << std::endl;
-
-                Message mess;
-
-                mess.from = tData->user.username;
-                mess.message = message;
-
-                for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
-                    if (to.compare(it->username) == 0) {
-                        sendMessage(2, &mess, it.base());
-                        userIsActive = true;
-                        break;
-                    }
-                }
-
-                if (!userIsActive) {
-                    bool newInThis = true;
-                    // std::cout << "Non dilivered messages:" << std::endl;
-                    for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
-                        // std::cout << it->first << std::endl;
-                        if (to.compare(it->first) == 0) {
-                            it->second.push_back(mess);
-                            newInThis = false;
-                        }
-                    }
-
-                    if (newInThis) {
-                        std::vector<Message> userMessages;
-                        userMessages.push_back(mess);
-                        tData->messagesData->insert(std::make_pair(to, userMessages));
-                    }
-                }
-
-
-            } else if (mode.compare("3") == 0) {
-                std::cout << "Sending current users list to: " << tData->user.username  << "\n";
-                Message message;
-                message.from = "SYS";
-                message.message = "";
-
-                for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
-                    if (tData->user.username.compare(it->username) == 0) {
-                        continue;
-                    }
-
-                    if (message.message != "") {
-                        message.message += ":";
-                    }
-                    message.message += it->username;
-                }
-
-                sendMessage(1, &message, &tData -> user);
-            } else if (mode.compare("4") == 0) {
-                std::cout << "Adding friend to user: " << tData->user.username  << "\n";
+void friendsProcess(ThreadData* tData, std::string mode, std::string to){
+    std::cout << "Adding friend to user: " << tData->user.username  << "\n";
 
                 if (to.compare("") != 0) {
                     bool newInThis = true;
@@ -200,20 +101,136 @@ void* cthread(void* arg) {
                 }
                 
                 sendMessage(4, &message, &tData -> user);
-            } else if (mode.compare("9") == 0) {
-                std::cout << "User " << tData -> user.username << " is disconnecting" << std::endl;
-                for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
-                    if (tData->user.username.compare(it->username) == 0) {
-                        Message message;
-                        message.from = "SYS";
-                        message.message = "Disconnecting...";
-                        sendMessage(9, &message, &tData -> user);
-                        tData->users->erase(it);
-                        break;
-                    }
+}
+
+void currentUsersProcess(ThreadData* tData, std::string mode, std::string to) {
+    std::cout << "Sending current users list to: " << tData->user.username  << "\n";
+    Message message;
+    message.from = "SYS";
+    message.message = "";
+
+    for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+        if (tData->user.username.compare(it->username) == 0) {
+            continue;
+        }
+
+        if (message.message != "") {
+            message.message += ":";
+        }
+        message.message += it->username;
+    }
+
+    sendMessage(1, &message, &tData -> user);
+}
+
+void messageProcess(ThreadData* tData, std::string mode, std::string to, std::string message) {
+    bool userIsActive = false;
+    std::cout << "Sending data\nFrom: " << tData -> user.username << "\nTo: " << to << std::endl;
+
+    Message mess;
+
+    mess.from = tData->user.username;
+    mess.message = message;
+
+    for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+        if (to.compare(it->username) == 0) {
+            sendMessage(2, &mess, it.base());
+            userIsActive = true;
+            break;
+        }
+    }
+
+    if (!userIsActive) {
+        bool newInThis = true;
+        // std::cout << "Non dilivered messages:" << std::endl;
+        for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
+            // std::cout << it->first << std::endl;
+            if (to.compare(it->first) == 0) {
+                it->second.push_back(mess);
+                newInThis = false;
+            }
+        }
+
+        if (newInThis) {
+            std::vector<Message> userMessages;
+            userMessages.push_back(mess);
+            tData->messagesData->insert(std::make_pair(to, userMessages));
+        }
+    }
+}
+
+bool loginUser(ThreadData* tData, std::string mode, std::string to) {
+    Message message;
+    message.from = "SYS";
+
+    tData->user.username = to;
+    std::cout << "Loging in: " << tData->user.username << "\n";
+
+    for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
+        if (tData->user.username.compare(it->username) == 0) {
+            message.message = "Error - username " + tData->user.username + " already exists!";
+            sendMessage(9, &message, &tData -> user);
+            std::cout << "Error: " << tData->user.username << " username already exists\n";
+
+            return false;
+        }
+    }
+    std::cout << "Added " << tData->user.username << " to users list\n";
+    tData->users->push_back(tData->user);
+
+    message.message = "Logged in as " + tData->user.username;
+    std::cout << "Send SYS message" << std::endl;
+    sendMessage(1, &message, &tData -> user);
+    for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
+            if (tData->user.username.compare(it->first) == 0) {
+                for (auto m : it->second) {
+                    sendMessage(2, &m, &tData -> user);
                 }
-                close(tData->user.userFileDescriptor);
-                break;
+            }
+            tData->messagesData->erase(it);
+            break;
+        }
+
+    return true;
+}
+
+void* cthread(void* arg) {
+    struct ThreadData* tData = (struct ThreadData*)arg;
+    int readRet;
+    char* buffer = new char[BUFFER_SIZE];
+
+    printf("\e[32m[CONNECTED]\e[0m: %s", inet_ntoa((struct in_addr)tData -> user.userAddr.sin_addr));
+
+    while(1) {
+        readRet = read(tData -> user.userFileDescriptor, buffer, BUFFER_SIZE);
+
+        if (readRet == -1) {
+            printf("Reading error - braeaking loop\n");
+            break;
+        } else if (readRet == 0) {
+            continue;
+        }
+            std::stringstream sstream;
+            std::string mode, to, message;
+
+            sstream << buffer;
+
+            std::getline(sstream, mode, ';');
+            std::getline(sstream, to, ';');
+            std::getline(sstream, message, ';');
+
+            // std::cout << "\nMode: " << mode << "\nTo: " << to << "\nMessage: " << message << "\n\n";
+
+            if (mode.compare("1") == 0) {
+                if (!loginUser(tData, mode, to)) break;
+            } else if (mode.compare("2") == 0) {
+                messageProcess(tData, mode, to, message);
+            } else if (mode.compare("3") == 0) {
+                currentUsersProcess(tData, mode, to);
+            } else if (mode.compare("4") == 0) {
+                friendsProcess(tData, mode, to);
+            } else if (mode.compare("9") == 0) {
+                if (disconnectProcess(tData, mode)) break;
             }
 
 
