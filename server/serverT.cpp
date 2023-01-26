@@ -24,7 +24,9 @@
 #define ALLERT "\e[31m[ALLERT]: \e[0m"
 #define INFO "\e[33m[INFO]: \e[0m"
 
-pthread_mutex_t users_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t USERS_MUTEX = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t MESSAGES_MUTEX = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t FRIENDS_MUTEX = PTHREAD_MUTEX_INITIALIZER;
 
 struct Message {
     std::string from;
@@ -40,7 +42,6 @@ struct User {
 struct ThreadData {
     User user;
     std::vector<User>* users;
-    pthread_mutex_t* users_mutex;
     std::map<std::string, std::vector<Message>>* messagesData;
     std::map<std::string, std::set<std::string>>* friends;
 };
@@ -64,12 +65,15 @@ void printLogSeparator(std::string section) {
 void printActiveStatusLoggs(ThreadData* tData) {
 
     printLogSeparator("CURRENT ACTIVE USERS");
+    pthread_mutex_lock(&USERS_MUTEX);
     for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
         std::cout << "\t" << it->username << std::endl;
     }
+    pthread_mutex_unlock(&USERS_MUTEX);
     printLogSeparator("");
 
     printLogSeparator("CURRENT NON-DILIVERED MESSAGES");
+    pthread_mutex_lock(&MESSAGES_MUTEX);
     for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
             std::cout << "\t" << it->first << std::endl;
 
@@ -77,9 +81,11 @@ void printActiveStatusLoggs(ThreadData* tData) {
                 std::cout << "\t\t" << m.from << " : " << m.message << std::endl; 
             }
         }
+    pthread_mutex_unlock(&MESSAGES_MUTEX);
     printLogSeparator("");
 
     printLogSeparator("CURRENT FRIENDS LISTS");
+    pthread_mutex_lock(&FRIENDS_MUTEX);
     for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
             std::cout << "\t" << it->first << std::endl;
 
@@ -87,11 +93,14 @@ void printActiveStatusLoggs(ThreadData* tData) {
                 std::cout << "\t\t" << f << std::endl; 
             }
         }
+    pthread_mutex_unlock(&FRIENDS_MUTEX);
     printLogSeparator("");
 }
 
 bool disconnectProcess(ThreadData* tData, std::string mode) {
     std::cout << INFO << "User " << tData -> user.username << " is disconnecting" << std::endl;
+
+    pthread_mutex_lock(&USERS_MUTEX);
     for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
         if (tData->user.username.compare(it->username) == 0) {
             Message message;
@@ -102,6 +111,7 @@ bool disconnectProcess(ThreadData* tData, std::string mode) {
             break;
         }
     }
+    pthread_mutex_unlock(&USERS_MUTEX);
 
     close(tData->user.userFileDescriptor);
     return true;
@@ -110,39 +120,44 @@ bool disconnectProcess(ThreadData* tData, std::string mode) {
 void friendsProcess(ThreadData* tData, std::string mode, std::string to){
     std::cout << INFO << "Adding friend to user: " << tData->user.username  << "\n";
 
-                if (to.compare("") != 0) {
-                    bool newInThis = true;
-                    for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
-                        if (tData->user.username.compare(it->first) == 0) {
-                            it->second.insert(to);
-                            newInThis = false;
-                        }
-                    }
 
-                    if (newInThis) {
-                        std::set<std::string> friends;
-                        friends.insert(to);
-                        tData->friends->insert(std::make_pair(tData->user.username, friends));
-                    }
+    if (to.compare("") != 0) {
+        bool newInThis = true;
+        pthread_mutex_lock(&FRIENDS_MUTEX);
+        for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
+            if (tData->user.username.compare(it->first) == 0) {
+                it->second.insert(to);
+                newInThis = false;
+            }
+        }
+
+        if (newInThis) {
+            std::set<std::string> friends;
+            friends.insert(to);
+            tData->friends->insert(std::make_pair(tData->user.username, friends));
+        }
+        pthread_mutex_unlock(&FRIENDS_MUTEX);
+    }
+
+    Message message;
+    message.from = "SYS";
+    message.message = "";
+
+    pthread_mutex_lock(&FRIENDS_MUTEX);
+    for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
+        if (tData->user.username.compare(it->first) == 0) {
+            for (auto f : it->second) {
+                if (message.message != "") {
+                    message.message += ":";
                 }
+                message.message += f;
+            }
+            break;
+        }
+    }
+    pthread_mutex_unlock(&FRIENDS_MUTEX);
 
-                Message message;
-                message.from = "SYS";
-                message.message = "";
-
-                for (std::map<std::string, std::set<std::string>>::iterator it = tData->friends->begin(); it != tData->friends->end(); ++it) {
-                    if (tData->user.username.compare(it->first) == 0) {
-                        for (auto f : it->second) {
-                            if (message.message != "") {
-                                message.message += ":";
-                            }
-                            message.message += f;
-                        }
-                    }
-                    break;
-                }
-                
-                sendMessage(4, &message, &tData -> user);
+    sendMessage(4, &message, &tData -> user);
 }
 
 void currentUsersProcess(ThreadData* tData, std::string mode, std::string to) {
@@ -151,6 +166,7 @@ void currentUsersProcess(ThreadData* tData, std::string mode, std::string to) {
     message.from = "SYS";
     message.message = "";
 
+    pthread_mutex_lock(&USERS_MUTEX);
     for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
         if (tData->user.username.compare(it->username) == 0) {
             continue;
@@ -161,6 +177,7 @@ void currentUsersProcess(ThreadData* tData, std::string mode, std::string to) {
         }
         message.message += it->username;
     }
+    pthread_mutex_unlock(&USERS_MUTEX);
 
     sendMessage(1, &message, &tData -> user);
 }
@@ -174,6 +191,7 @@ void messageProcess(ThreadData* tData, std::string mode, std::string to, std::st
     mess.from = tData->user.username;
     mess.message = message;
 
+    pthread_mutex_lock(&USERS_MUTEX);
     for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
         if (to.compare(it->username) == 0) {
             sendMessage(2, &mess, it.base());
@@ -181,9 +199,11 @@ void messageProcess(ThreadData* tData, std::string mode, std::string to, std::st
             break;
         }
     }
+    pthread_mutex_unlock(&USERS_MUTEX);
 
     if (!userIsActive) {
         bool newInThis = true;
+        pthread_mutex_lock(&MESSAGES_MUTEX);
         for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
             if (to.compare(it->first) == 0) {
                 it->second.push_back(mess);
@@ -196,6 +216,7 @@ void messageProcess(ThreadData* tData, std::string mode, std::string to, std::st
             userMessages.push_back(mess);
             tData->messagesData->insert(std::make_pair(to, userMessages));
         }
+        pthread_mutex_unlock(&MESSAGES_MUTEX);
     }
 }
 
@@ -206,6 +227,7 @@ bool loginUser(ThreadData* tData, std::string mode, std::string to) {
     tData->user.username = to;
     std::cout << INFO << "Loging in: " << tData->user.username << "\n";
 
+    pthread_mutex_lock(&USERS_MUTEX);
     for (std::vector<User>::iterator it = tData->users->begin(); it != tData->users->end(); ++it) {
         if (tData->user.username.compare(it->username) == 0) {
             message.message = "ERROR: username " + tData->user.username + " already exists!";
@@ -217,10 +239,12 @@ bool loginUser(ThreadData* tData, std::string mode, std::string to) {
     }
     std::cout << INFO << "Added " << tData->user.username << " to users list\n";
     tData->users->push_back(tData->user);
+    pthread_mutex_unlock(&USERS_MUTEX);
 
     message.message = "Logged in as " + tData->user.username;
     std::cout << INFO << "Send SYS message" << std::endl;
     sendMessage(1, &message, &tData -> user);
+    pthread_mutex_lock(&MESSAGES_MUTEX);
     for (std::map<std::string, std::vector<Message>>::iterator it = tData->messagesData->begin(); it != tData->messagesData->end(); ++it) {
             if (tData->user.username.compare(it->first) == 0) {
                 for (auto m : it->second) {
@@ -230,6 +254,7 @@ bool loginUser(ThreadData* tData, std::string mode, std::string to) {
             tData->messagesData->erase(it);
             break;
         }
+    pthread_mutex_unlock(&MESSAGES_MUTEX);
 
     return true;
 }
@@ -280,7 +305,7 @@ void* clientThread(void* arg) {
 }
 
 int main(int argc, char **argv) {
-    std::vector<User> users;
+    std::vector<User> mUsers;
     std::map<std::string, std::vector<Message>>* mMessagesData = new std::map<std::string, std::vector<Message>>;
     std::map<std::string, std::set<std::string>>* mFriendsData = new std::map<std::string, std::set<std::string>>;
 
@@ -308,7 +333,7 @@ int main(int argc, char **argv) {
     listen(serverFd, BACKLOG_SIZE);
 
     while(1) {
-        if (users.size() >= BACKLOG_SIZE) {
+        if (mUsers.size() >= BACKLOG_SIZE) {
             std::cout << ALLERT << "Max users reached" << std::endl;
             sleep(5);
             continue;
@@ -321,16 +346,15 @@ int main(int argc, char **argv) {
         clientSocketLength = sizeof(client.userAddr);
         client.userFileDescriptor = accept(serverFd, (struct sockaddr*)&clientAddress, &clientSocketLength);
 
-        tData -> users = &users;
-        tData -> users_mutex = &users_mutex;
-        tData -> user = client;
+        tData -> users = &mUsers;
         tData -> messagesData = mMessagesData;
         tData -> friends = mFriendsData; 
+        tData -> user = client;
 
         pthread_create(&tid, NULL, clientThread, tData);
         pthread_detach(tid);
 
-        if (users.size() + 1 >= BACKLOG_SIZE) {
+        if (mUsers.size() + 1 >= BACKLOG_SIZE) {
             std::cout << ALLERT << "Max users reached" << std::endl;
             sleep(5);
             continue;
