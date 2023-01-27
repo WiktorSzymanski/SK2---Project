@@ -5,9 +5,10 @@ import tkinter as tk
 from tkinter import *
 from tkinter import simpledialog, scrolledtext
 from collections import defaultdict
+from time import sleep
 import sys
 
-HOST = '192.168.55.105'
+HOST = '172.21.30.132'
 PORT = 1234
 
 class Client:
@@ -24,8 +25,8 @@ class Client:
     try:
       self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
       self.sock.connect((host, port))
-      message = "1;" + str(self.nickname) + ";0;"
-      self.sock.send(message.encode("utf-8"))
+      message = "1;" + str(self.nickname) + ";\n"
+      self.sock.sendall(message.encode("utf-8"))
     except:
       print("Some issue with connection. Your server not responding")
       exit(-1)
@@ -53,7 +54,7 @@ class Client:
 
   def gui_loop(self):
     self.win = tk.Tk()
-    self.win.iconbitmap("static/mail.ico")
+    self.win.iconbitmap("./client/static/mail.ico")
     self.win.title('BSD Socket based communicator')
     self.win.configure()
 
@@ -133,8 +134,9 @@ class Client:
   def on_closing(self):
     self.running = False
     if self.closing:
-      message = "9;0;0;"
-      self.sock.send(message.encode("utf-8"))
+      message = "9;;\n"
+      self.sock.sendall(message.encode("utf-8"))
+    sleep(1)
     self.sock.close()
     self.win.destroy()
     exit(0)
@@ -151,8 +153,8 @@ class Client:
     if len(newFriend) > 0:
       if newFriend not in self.friends_set:
         self.users_area.insert(i, newFriend)
-        message = '4;' + newFriend + ';' + ";"
-        self.sock.send(message.encode("utf-8"))
+        message = '4;' + newFriend + ';' + "\n"
+        self.sock.sendall(message.encode("utf-8"))
 
   # he write method is called when the user clicks the "Send" button in the chat interface.
   # It checks to ensure that the user has selected a recipient before allowing them to send a message.
@@ -161,8 +163,8 @@ class Client:
       self.add_message("It's no possible to write message to nobody")
     else:
       msg = str(self.input_msg.get('1.0', 'end').replace('\n', ''))
-      message = '2;' + str(self.current_reciver) + ';' + msg + ";"
-      self.sock.send(message.encode("utf-8"))
+      message = '2;' + str(self.current_reciver) + ';' + msg + "\n"
+      self.sock.sendall(message.encode("utf-8"))
       self.messeges[self.current_reciver].append(self.nickname + ": " + msg)
       self.input_msg.delete('1.0', 'end')
       self.add_message(self.nickname + ": " + msg)
@@ -170,12 +172,15 @@ class Client:
   # The writeOnEnter method is similar to the write method, but is called when the user presses
   # the enter key in the "input_msg" text field.
   def writeOnEnter(self, arg):
-    msg = str(self.input_msg.get('1.0', 'end').replace('\n', ''))
-    message = '2;' + str(self.current_reciver) + ';' + msg + ";"
-    self.sock.send(message.encode("utf-8"))
-    self.messeges[self.current_reciver].append(self.nickname + ": " + msg)
-    self.input_msg.delete('1.0', 'end')
-    self.add_message(self.nickname + ": " + msg)
+    if self.current_reciver == None:
+      self.add_message("It's no possible to write message to nobody")
+    else:
+      msg = str(self.input_msg.get('1.0', 'end').replace('\n', ''))
+      message = '2;' + str(self.current_reciver) + ';' + msg + "\n"
+      self.sock.sendall(message.encode("utf-8"))
+      self.messeges[self.current_reciver].append(self.nickname + ": " + msg)
+      self.input_msg.delete('1.0', 'end')
+      self.add_message(self.nickname + ": " + msg)
 
   # The print_message method is called when the user selects a different chat recipient.
   # It clears the chat history display and then repopulates it with the chat history of the newly selected recipient.
@@ -239,9 +244,20 @@ class Client:
   def recive(self):
     while self.running:
       try:
-        message = self.sock.recv(512).decode('utf-8')
-        if message:
-          for element in self.recive_message(message):
+        buffer = ""
+        
+        buffer+=self.sock.recv(1).decode("utf-8")
+        while buffer[-1] != "\n":
+          buffer+=self.sock.recv(1).decode("utf-8")
+
+        print(buffer + "\n")
+        
+        print("DONE IT")
+
+
+        if buffer != "":
+          for element in self.recive_message(buffer):
+            print(element)
             self.rosponse_handler(element)
       except:
         pass
@@ -250,8 +266,8 @@ class Client:
 
   # The update_friends method is called to request an update of the friends list from the server.
   def update_friends(self):
-    message = "4;;;"
-    self.sock.send(message.encode("utf-8"))
+    message = "4;;\n"
+    self.sock.sendall(message.encode("utf-8"))
 
 if __name__ == "__main__":
   client = Client(HOST, PORT)
