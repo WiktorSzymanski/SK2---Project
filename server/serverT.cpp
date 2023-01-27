@@ -97,7 +97,7 @@ void printActiveStatusLoggs(ThreadData* tData) {
     printLogSeparator("");
 }
 
-bool disconnectProcess(ThreadData* tData, std::string mode) {
+bool disconnectProcess(ThreadData* tData) {
     std::cout << INFO << "User " << tData -> user.username << " is disconnecting" << std::endl;
 
     pthread_mutex_lock(&USERS_MUTEX);
@@ -117,7 +117,7 @@ bool disconnectProcess(ThreadData* tData, std::string mode) {
     return true;
 }
 
-void friendsProcess(ThreadData* tData, std::string mode, std::string to){
+void friendsProcess(ThreadData* tData, std::string to){
     std::cout << INFO << "Adding friend to user: " << tData->user.username  << "\n";
 
 
@@ -160,7 +160,7 @@ void friendsProcess(ThreadData* tData, std::string mode, std::string to){
     sendMessage(4, &message, &tData -> user);
 }
 
-void currentUsersProcess(ThreadData* tData, std::string mode, std::string to) {
+void currentUsersProcess(ThreadData* tData, std::string to) {
     std::cout << INFO << "Sending current users list to: " << tData->user.username  << "\n";
     Message message;
     message.from = "SYS";
@@ -182,7 +182,7 @@ void currentUsersProcess(ThreadData* tData, std::string mode, std::string to) {
     sendMessage(1, &message, &tData -> user);
 }
 
-void messageProcess(ThreadData* tData, std::string mode, std::string to, std::string message) {
+void messageProcess(ThreadData* tData, std::string to, std::string message) {
     bool userIsActive = false;
     std::cout << INFO << "Sending data\n\tFrom: " << tData -> user.username << "\n\tTo: " << to << std::endl;
 
@@ -220,7 +220,7 @@ void messageProcess(ThreadData* tData, std::string mode, std::string to, std::st
     }
 }
 
-bool loginUser(ThreadData* tData, std::string mode, std::string to) {
+bool loginUser(ThreadData* tData, std::string to) {
     Message message;
     message.from = "SYS";
 
@@ -284,15 +284,15 @@ void* clientThread(void* arg) {
             std::getline(sstream, message, ';');
 
             if (mode.compare("1") == 0) {
-                if (!loginUser(tData, mode, to)) break;
+                if (!loginUser(tData, to)) break;
             } else if (mode.compare("2") == 0) {
-                messageProcess(tData, mode, to, message);
+                messageProcess(tData, to, message);
             } else if (mode.compare("3") == 0) {
-                currentUsersProcess(tData, mode, to);
+                currentUsersProcess(tData, to);
             } else if (mode.compare("4") == 0) {
-                friendsProcess(tData, mode, to);
+                friendsProcess(tData, to);
             } else if (mode.compare("9") == 0) {
-                if (disconnectProcess(tData, mode)) break;
+                if (disconnectProcess(tData)) break;
             }
 
         memset(buffer, '\0', BUFFER_SIZE);
