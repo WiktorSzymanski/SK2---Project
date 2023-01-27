@@ -16,6 +16,7 @@
 #include <map>
 #include <set>
 #include <cstring>
+#include <cstdlib>
 
 #define BUFFER_SIZE 512
 #define BACKLOG_SIZE 10
@@ -51,11 +52,17 @@ struct ThreadData {
 */
 void sendMessage(int mode, Message* message, User* user) {
     std::string stringMessage = std::to_string(mode) + ";" + message->from + ";" + message->message + "\n";
-    write(user->userFileDescriptor, stringMessage.c_str(), strlen(stringMessage.c_str()));
+    
+    int respSize = strlen(stringMessage.c_str());
+    int sendSize = 0;
+
+    do {
+        sendSize += write(user->userFileDescriptor, stringMessage.c_str() + sendSize, respSize - sendSize);
+    } while (sendSize < respSize);
 };
 
 /**
- * Prints to STDO a separator with given title.
+ * Prints to STDOUT a separator with given title.
 */
 void printLogSeparator(std::string section) {
     if (section != "") section = " " + section + " ";
@@ -69,7 +76,7 @@ void printLogSeparator(std::string section) {
 }
 
 /**
- * Prints to STDO current statuses of active users, non-dilivered messages and friends lists.
+ * Prints to STDOUT current statuses of active users, non-dilivered messages and friends lists.
 */
 void printActiveStatusLoggs(ThreadData* tData) {
 
@@ -207,6 +214,7 @@ void currentUsersProcess(ThreadData* tData, std::string to) {
 void messageProcess(ThreadData* tData, std::string to, std::string message) {
     bool userIsActive = false;
     std::cout << INFO << "Sending data\n\tFrom: " << tData -> user.username << "\n\tTo: " << to << std::endl;
+    std::cout << INFO << "Data :" << message << std::endl;
 
     Message mess;
 
@@ -299,12 +307,15 @@ void* clientThread(void* arg) {
     std::cout << "\e[32m[CONNECTED]\e[0m: " << inet_ntoa((struct in_addr)tData -> user.userAddr.sin_addr) << std::endl;
 
     while(1) {
-        int readRet = read(tData -> user.userFileDescriptor, buffer, BUFFER_SIZE);
+        int numOfReadChars = 0;
+        do {
+            numOfReadChars += read(tData -> user.userFileDescriptor, buffer + numOfReadChars, 1);
+        } while(buffer[numOfReadChars - 1] != '\n');
 
-        if (readRet == -1) {
+        if (numOfReadChars == -1) {
             std::cout << ERROR << "reading error - braeaking loop!" << std::endl;
             break;
-        } else if (readRet == 0) {
+        } else if (numOfReadChars == 0) {
             continue;
         }
             std::stringstream sstream;
