@@ -46,11 +46,17 @@ struct ThreadData {
     std::map<std::string, std::set<std::string>>* friends;
 };
 
+/**
+ * Create response in valid format and sends it to client.
+*/
 void sendMessage(int mode, Message* message, User* user) {
     std::string stringMessage = std::to_string(mode) + ";" + message->from + ";" + message->message + "\n";
     write(user->userFileDescriptor, stringMessage.c_str(), strlen(stringMessage.c_str()));
 };
 
+/**
+ * Prints to STDO a separator with given title.
+*/
 void printLogSeparator(std::string section) {
     if (section != "") section = " " + section + " ";
     
@@ -62,6 +68,9 @@ void printLogSeparator(std::string section) {
     std::cout << "\n" << std::string(left_padding, '=') <<  section << std::string(right_padding, '=') << std::endl;
 }
 
+/**
+ * Prints to STDO current statuses of active users, non-dilivered messages and friends lists.
+*/
 void printActiveStatusLoggs(ThreadData* tData) {
 
     printLogSeparator("CURRENT ACTIVE USERS");
@@ -97,6 +106,10 @@ void printActiveStatusLoggs(ThreadData* tData) {
     printLogSeparator("");
 }
 
+/**
+ * Given the ThreadData, sends the possitive logout response to client and closes his file descriptor.
+ * @return true so clientThread function can end the thread.
+*/
 bool disconnectProcess(ThreadData* tData) {
     std::cout << INFO << "User " << tData -> user.username << " is disconnecting" << std::endl;
 
@@ -117,6 +130,9 @@ bool disconnectProcess(ThreadData* tData) {
     return true;
 }
 
+/**
+ * Adds and/or sends respone with list of friends to client.
+*/
 void friendsProcess(ThreadData* tData, std::string to){
     std::cout << INFO << "Adding friend to user: " << tData->user.username  << "\n";
 
@@ -160,6 +176,9 @@ void friendsProcess(ThreadData* tData, std::string to){
     sendMessage(4, &message, &tData -> user);
 }
 
+/**
+ * Sends list of currently logged in users.
+*/
 void currentUsersProcess(ThreadData* tData, std::string to) {
     std::cout << INFO << "Sending current users list to: " << tData->user.username  << "\n";
     Message message;
@@ -182,6 +201,9 @@ void currentUsersProcess(ThreadData* tData, std::string to) {
     sendMessage(1, &message, &tData -> user);
 }
 
+/**
+ * Process message data and sends it to client. If client is not currently logged in, message is saved in mMessagesData map.
+*/
 void messageProcess(ThreadData* tData, std::string to, std::string message) {
     bool userIsActive = false;
     std::cout << INFO << "Sending data\n\tFrom: " << tData -> user.username << "\n\tTo: " << to << std::endl;
@@ -220,6 +242,12 @@ void messageProcess(ThreadData* tData, std::string to, std::string message) {
     }
 }
 
+
+/**
+ * Loggs in and validates user. After that sends positive response to client.
+ * If by any means server did not add client to users list, sends negative response to client.
+ * @return bool true when login was successful, false otherwise.
+*/
 bool loginUser(ThreadData* tData, std::string to) {
     Message message;
     message.from = "SYS";
@@ -259,6 +287,11 @@ bool loginUser(ThreadData* tData, std::string to) {
     return true;
 }
 
+
+/**
+ * Function that serves connection to connected client. Depending on the mode of request it runs proper mathod that sends response to client.
+ * @return null pointer so compiler doesn't throw warning.
+*/
 void* clientThread(void* arg) {
     struct ThreadData* tData = (struct ThreadData*)arg;
     char* buffer = new char[BUFFER_SIZE];
@@ -304,6 +337,11 @@ void* clientThread(void* arg) {
     return nullptr;
 }
 
+
+/**
+ * Main function. Preperes all needed data for server to run properly and listens for new cilient's connections.
+ * @return EXIT_SUCCES when server leaves while loop.
+*/
 int main(int argc, char **argv) {
     std::vector<User> mUsers;
     std::map<std::string, std::vector<Message>>* mMessagesData = new std::map<std::string, std::vector<Message>>;
@@ -316,11 +354,11 @@ int main(int argc, char **argv) {
     
     int serverFd = socket(PF_INET, SOCK_STREAM, 0), on = 1;
 
-    // Mówi systemowi operacyjnemu aby uwalniał port po wyłączeniu serwera
+
     setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR, (char*)&on, sizeof(on));
 
     serverAddress.sin_family = PF_INET;
-    serverAddress.sin_addr.s_addr = INADDR_ANY; // wszystkie adresy ip w systemie
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
     serverAddress.sin_port = htons(SERVER_PORT);
 
     int isPortAlreadyTaken = -1 == bind(serverFd, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
