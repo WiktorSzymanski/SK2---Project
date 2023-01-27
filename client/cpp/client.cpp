@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <iostream>
+#include <cstring>
+#include <cstdlib>
 
 void request(char *addres, int port) {
     int fd = socket(PF_INET, SOCK_STREAM, 0);
@@ -28,11 +30,17 @@ void request(char *addres, int port) {
 
         while(1) {
             char buf[512];
+
+            std::cout << "\nSize: ";
+            std::cin >> temp;
+
+            strcpy(buf, temp);
+            strcat(buf, "\n");
             
             std::cout << "\nMode: ";
             std::cin >> temp;
 
-            strcpy(buf, temp);
+            strcat(buf, temp);
             strcat(buf, ";");
 
             memset(temp, 0, 100);
@@ -48,10 +56,9 @@ void request(char *addres, int port) {
             std::cin >> temp;
 
             strcat(buf, temp);
-            strcat(buf, ";");
+            strcat(buf, "\n");
             memset(temp, 0, 100);
 
-        
             write(fd, buf, strlen(buf));
             memset(buf, 0, 512); 
             read(fd, buf, sizeof(buf));
