@@ -240,7 +240,6 @@ class Client:
     while self.running:
       try:
         message = self.sock.recv(512).decode('utf-8')
-        print(message)
         if message:
           for element in self.recive_message(message):
             self.rosponse_handler(element)
