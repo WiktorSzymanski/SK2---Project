@@ -23,6 +23,7 @@ class Client:
 
     try:
       self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      self.sock.connect((host, port))
       message = "1;" + str(self.nickname) + ";0;"
       self.sock.send(message.encode("utf-8"))
     except:
