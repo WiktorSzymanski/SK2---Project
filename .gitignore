@@ -1,4 +1,4 @@
-./.vscode
-./*.exe
-
-./.idea
+*.vscode
+*.exe
+*.out
+*.idea

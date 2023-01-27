@@ -55,7 +55,7 @@ void sendMessage(int mode, Message* message, User* user) {
 };
 
 /**
- * Prints to STDO a separator with given title.
+ * Prints to STDOUT a separator with given title.
 */
 void printLogSeparator(std::string section) {
     if (section != "") section = " " + section + " ";
@@ -69,7 +69,7 @@ void printLogSeparator(std::string section) {
 }
 
 /**
- * Prints to STDO current statuses of active users, non-dilivered messages and friends lists.
+ * Prints to STDOUT current statuses of active users, non-dilivered messages and friends lists.
 */
 void printActiveStatusLoggs(ThreadData* tData) {
 
